@@ -30,8 +30,9 @@ function exportCSV() {
     .then((blob) => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
+      const date = new Date();
       link.href = url;
-      link.setAttribute('download', 'final-attendance.csv');
+      link.setAttribute('download', 'final-attendance'+String(date)+'.csv');
       document.body.appendChild(link);
       link.click();
     })
@@ -128,7 +129,7 @@ export default function HomePage() {
               className="bg-zinc-700 text-zinc-100 font-medium w-24 bg-gradient-to-br from-red-500 to-blue-500 hover:bg-gradient-to-br hover:from-red-600 hover:to-blue-600 transition-all duration-500 ease-in-out transform hover:scale-105"
               radius="sm"
               size="md"
-              onClick={exportCSV}
+              onPress={exportCSV}
             >
                 Export CSV
               </Button>

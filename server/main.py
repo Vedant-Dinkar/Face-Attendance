@@ -1,6 +1,6 @@
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List
+from fastapi.security import OAuth2AuthorizationCodeBearer
 import logging
 import numpy as np
 import cv2
@@ -9,17 +9,58 @@ from mtcnn import MTCNN
 import insightface
 import math
 import pickle
+import motor
+from motor import motor_asyncio
 import json
+from pymongo import MongoClient
 import csv
-import csv
-from fastapi import FastAPI, Request, Form, File, UploadFile
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import os
+import datetime
+import httpx
+from typing import List
+from fastapi import Form
+from fastapi import File, UploadFile, Form
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+import random
+
+
+app = FastAPI()
+
+class Item(BaseModel):
+    data: list
+
+# # OAuth2 config
+# oauth2_scheme = OAuth2AuthorizationCodeBearer(
+#     tokenUrl="token",
+#     authorizationUrl="login",
+# )
+
+try:
+    ct = MongoClient("mongodb://localhost:27017/")
+    database = ct["Attendance_Face"]
+    print("Connected to MongoDB successfully")
+except Exception as e:
+    print(f"Failed to connect to MongoDB: {e}")
+
+
+oauth2_scheme = OAuth2AuthorizationCodeBearer(tokenUrl="token", authorizationUrl="login")
 
 model = insightface.app.FaceAnalysis(name="buffalo_l")
 model.prepare(ctx_id=-1)
+
+client = MongoClient('localhost', 27017)
+
+db = client.get_database("FaceAttendance")
+
+log = db.get_collection("LogXY")
+
+user="Vedant"
+user1="Vedant"
+password="IMPOM"
 
 students = {
     190001060: 'SURENDAR KETHAVATH',
@@ -139,8 +180,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-app = FastAPI()
-
 origins = [
     "http://localhost:3000"
 ]
@@ -155,7 +194,23 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    return {"message": "Hello World"}
+    user="Vedant"
+    password="BOMPOM"
+
+    log = db.get_collection("LogXY")
+    
+    existing_profile = log.find_one({"Name": user, "Password": password})
+    if existing_profile:
+        return {"message": "Success!"}
+    else:
+        exist=log.find_one({"Name": user})
+        if exist:
+            return {"message": "Error! Username Exists! Hello World data_collection = dab[user]"+user}
+        else:
+            aadmi=db.get_collection("LogXY")
+            mydict = { "Created": datetime.datetime.now()}
+            db[user].insert_one(mydict)
+    return {"message": "Hello "+user}
 
 @app.post("/uploadfiles")
 async def create_upload_files(files: List[UploadFile]):
@@ -200,6 +255,17 @@ async def create_upload_files(files: List[UploadFile]):
 
     output = list(output)
     output.sort()
+ 
+    stud=db[user].find_one({"Type": "list", "Class": "CS203"})
+    att=""
+    for i in range(len(stud["Data"])):
+        if str(stud["Data"][i][1]) in output:
+            att+="1"
+        else:
+            att+="0"
+
+    da={"Type": "data", "Date": str(datetime.datetime.now())[:10], "Class": "CS203", "Data": att}
+    db[user].insert_one(da)
 
     with open("./final-attendance.csv", 'w+') as f: 
         for roll in output:
@@ -212,4 +278,75 @@ async def create_upload_files(files: List[UploadFile]):
     
 @app.get("/exportcsv")
 async def export_csv():
-    return FileResponse("./final-attendance.csv", filename='final-attendance.csv')
+    return FileResponse("./final-attendance"+".csv", filename='final-attendance.csv')
+
+@app.post("llogin")
+async def login(credentials: dict):
+    username = credentials.get("username")
+    password = credentials.get("password")
+
+    user = log.find_one({"username": username, "password": password})
+
+    if user:
+        print("Good!")
+        return {"message": "Login successful"}
+    
+    print("Bad!")    
+    return {"message": "Login unsuccessfull"}
+
+@app.post("/login")
+async def login(id_token: str):
+    print("Received token:", id_token)
+
+    google_response = await httpx.get(
+        f"https://www.googleapis.com/oauth2/v3/tokeninfo?id_token={id_token}"
+    )
+
+    print("Google response:", google_response.text)
+
+    google_data = google_response.json()
+
+    if "error_description" in google_data:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user_email = google_data["email"]
+    return {"message": "Login successful", "user_email": user_email}
+
+@app.get("/protected")
+async def protected_route(token: str = Depends(oauth2_scheme)):
+    # Access token is valid, handle protected route logic
+    pass
+
+@app.get("/courses")
+async def course():
+    kaksha="CS203"
+    stud=db[user].find_one({"Type": "list", "Class": kaksha})
+    bacche=[]
+    for i in stud["Data"]:
+        bacche.append((i[2], i[1]))
+
+    print(bacche)
+    return {"stulist": bacche}
+
+@app.post("/cours")
+async def cours(
+    files: List[UploadFile] = File(...),
+    rollNumbers: List[str] = Form(...),
+):
+    for roll, file in zip(rollNumbers, files):
+        contents = await file.read()
+        filename = f"{roll}_{file.filename}"
+        with open(filename, "wb") as f:
+            f.write(contents)
+    
+    print(rollNumbers)
+
+    return {"message": "Files received successfully", "rollNumbers": rollNumbers}
+
+@app.post("/log")
+async def addUser():
+    para
+
+@app.get("/callback")
+async def call():
+    return {"message": "80085!"}

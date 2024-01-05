@@ -1,0 +1,6 @@
+.navbar {
+    background: rgb(0, 0, 0); /*Set a semi-transparent background */
+    backdrop-filter: blur(10px); /* Apply a blur filter */
+    padding: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); /* Add a subtle shadow for contrast */
+  }
